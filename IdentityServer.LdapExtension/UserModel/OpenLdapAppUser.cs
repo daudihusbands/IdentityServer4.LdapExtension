@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Security.Claims;
 using IdentityModel;
 using IdentityServer.LdapExtension.Extensions;
@@ -60,7 +61,7 @@ namespace IdentityServer.LdapExtension.UserModel
             {
                 try
                 {
-                    var userRoles = user.getAttribute(OpenLdapAttributes.MemberOf.ToDescriptionString()).StringValues;
+                    var userRoles = user.GetAttribute(OpenLdapAttributes.MemberOf.ToDescriptionString()).StringValues;
                     while (userRoles.MoveNext())
                     {
                         this.Claims.Add(new Claim(JwtClaimTypes.Role, userRoles.Current.ToString()));
@@ -76,6 +77,25 @@ namespace IdentityServer.LdapExtension.UserModel
             }
         }
 
+        /// <summary>
+        /// Fills the extra claims
+        /// </summary>
+        /// <param name="ldapEntry"></param>
+        /// <param name="extrafields"></param>
+        private void FillExtrafields(LdapEntry user, IEnumerable<string> extrafields)
+        {
+            if (extrafields == null) return;
+
+            var keyset = user.GetAttributeSet();
+            foreach (var field in extrafields)
+            {
+                if (keyset.Keys.Contains(field))
+                {
+                    this.Claims.Add(new Claim(field, user.GetAttribute(field).StringValue));
+                }
+            }
+        }
+
         public static string[] RequestedLdapAttributes()
         {
             throw new NotImplementedException();
@@ -87,7 +107,7 @@ namespace IdentityServer.LdapExtension.UserModel
 
             try
             {
-                value = user.getAttribute(ldapAttribute.ToDescriptionString()).StringValue;
+                value = user.GetAttribute(ldapAttribute.ToDescriptionString()).StringValue;
                 return new Claim(claim, value);
             }
             catch (Exception)
@@ -99,14 +119,16 @@ namespace IdentityServer.LdapExtension.UserModel
             return new Claim(claim, value);
         }
 
-        public void SetBaseDetails(LdapEntry ldapEntry, string providerName)
+        public void SetBaseDetails(LdapEntry ldapEntry, string providerName, IEnumerable<string> extraFields = null)
         {
-            DisplayName = ldapEntry.getAttribute(OpenLdapAttributes.DisplayName.ToDescriptionString()).StringValue;
-            Username = ldapEntry.getAttribute(OpenLdapAttributes.UserName.ToDescriptionString()).StringValue;
+            DisplayName = ldapEntry.GetAttribute(OpenLdapAttributes.DisplayName.ToDescriptionString()).StringValue;
+            Username = ldapEntry.GetAttribute(OpenLdapAttributes.UserName.ToDescriptionString()).StringValue;
             ProviderName = providerName;
             SubjectId = Username; // Extra: We could use the uidNumber instead in a sha algo.
             ProviderSubjectId = Username;
             FillClaims(ldapEntry);
+
+            FillExtrafields(ldapEntry, extraFields);
         }
     }
 }
